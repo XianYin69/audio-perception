@@ -1,0 +1,15 @@
+{
+  "id": "pt-audio-perception-recalibrate",
+  "title": "复标声音锚点阈值（合成样本阈值需用真实录音复核）",
+  "skill": "audio-perception",
+  "input": "用真实录音样本复核 knowledge/声学特征字典.md 与 knowledge/声音类别体系.md 的阈值锚点（zcr/flatness/onset_rate/f0 区间），偏差超过一档就更新文档并在 CHANGELOG 记录；不要安装任何依赖。",
+  "schedule": { "mode": "at", "at": "2026-10-09T10:00" },
+  "session": { "kind": "cron", "key": "audio-perception:pt-audio-perception-recalibrate" },
+  "status": "pending",
+  "created": "2026-10-02T16:32",
+  "next_run": "2026-10-09T10:00",
+  "last_run": null,
+  "runs": 0,
+  "notify": "shell",
+  "depends": []
+}

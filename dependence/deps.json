@@ -1,0 +1,81 @@
+{
+  "skill": "audio-perception",
+  "checked_at": "2026-10-02",
+  "policy": "本技能不自动安装任何依赖；缺包只报错并给手动命令（见 resistance/不安装依赖）。",
+  "dependencies": [
+    {
+      "name": "numpy",
+      "source_url": "https://github.com/numpy/numpy",
+      "homepage": "https://pypi.org/project/numpy/",
+      "license": "BSD-3-Clause",
+      "version": "2.5.2 (installed, Python 3.14.5)",
+      "required": "hard",
+      "install": "python -m pip install numpy（仅在用户确认后手动执行）",
+      "checked_at": "2026-10-02",
+      "source_url_status": "verified"
+    },
+    {
+      "name": "python-stdlib-wave",
+      "source_url": "https://docs.python.org/3/library/wave.html",
+      "license": "PSF-2.0",
+      "version": "bundled with CPython 3.14.5",
+      "required": "hard",
+      "install": "无需安装（标准库；audioop 已于 3.13 移除，本技能不引用）",
+      "checked_at": "2026-10-02",
+      "source_url_status": "verified"
+    },
+    {
+      "name": "SMS-llm-gateway",
+      "source_url": "local://skill_manage_system",
+      "license": "MIT",
+      "version": "config/config.json llm_gateway (SCNet-Max)",
+      "required": "hard",
+      "install": "由 SMS 主流程提供；本技能只读不写、不复制配置",
+      "checked_at": "2026-10-02",
+      "source_url_status": "verified"
+    },
+    {
+      "name": "screen-vision-gw-pattern",
+      "source_url": "local://screen-vision",
+      "license": "MIT",
+      "version": "scripts/gw.py 调用范式",
+      "required": "soft",
+      "install": "无需安装（仅范式参照：直读配置、api_key 绝不打印）",
+      "checked_at": "2026-10-02",
+      "source_url_status": "verified"
+    },
+    {
+      "name": "sounddevice",
+      "source_url": "https://github.com/spatialaudio/python-sounddevice",
+      "homepage": "https://pypi.org/project/sounddevice/",
+      "license": "MIT",
+      "version": "not installed",
+      "required": "optional",
+      "install": "python -m pip install sounddevice（用户自行确认后执行）",
+      "checked_at": "2026-10-02",
+      "source_url_status": "verified"
+    },
+    {
+      "name": "pyaudio",
+      "source_url": "https://people.csail.mit.edu/hubert/pyaudio/",
+      "homepage": "https://pypi.org/project/PyAudio/",
+      "license": "MIT",
+      "version": "not installed",
+      "required": "optional",
+      "install": "python -m pip install pyaudio（用户自行确认后执行）",
+      "checked_at": "2026-10-02",
+      "source_url_status": "verified"
+    },
+    {
+      "name": "ffmpeg",
+      "source_url": "https://git.ffmpeg.org/ffmpeg.git",
+      "homepage": "https://ffmpeg.org/download.html",
+      "license": "GPL-3.0-or-later (build-dependent)",
+      "version": "not on PATH",
+      "required": "optional",
+      "install": "winget install Gyan.FFmpeg（非 WAV 转码与 dshow 录音用；本技能不代装）",
+      "checked_at": "2026-10-02",
+      "source_url_status": "verified"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "id": "pt-audio-perception-<slug>",
+  "title": "示例：每周检查锚点阈值是否需复标",
+  "skill": "audio-perception",
+  "input": "到期要执行的诉求文本",
+  "schedule": {
+    "mode": "at",
+    "at": "2026-10-09T10:00",
+    "cron": "0 8 * * 1",
+    "every_min": 1440
+  },
+  "session": { "kind": "cron", "key": "audio-perception:pt-audio-perception-<slug>" },
+  "status": "pending",
+  "created": "2026-10-02T16:32",
+  "next_run": "2026-10-09T10:00",
+  "last_run": null,
+  "runs": 0,
+  "notify": "shell",
+  "depends": []
+}

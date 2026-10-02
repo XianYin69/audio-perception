@@ -1,0 +1,30 @@
+{
+  "name": "audio-perception-encoding",
+  "version": "ap-enc-1",
+  "deterministic": true,
+  "produced_by": "scripts/analyze.py --format json",
+  "fields": {
+    "version": "string=ap-enc-1",
+    "source": {"file": "string", "start": "number(s)", "end": "number(s)", "max_sec": "number"},
+    "meta": {"duration": "number", "sample_rate": "int", "channels": "int",
+             "bit_depth": "int", "clipping_ratio": "number", "silence_ratio": "number"},
+    "loudness": {"rms_dbfs": "number", "peak_dbfs": "number",
+                 "dynamic_range_db": "number", "envelope_var": "number"},
+    "time": {"zcr_mean": "number", "zcr_std": "number", "onset_rate_hz": "number",
+             "bpm": "number", "hop_s": "number"},
+    "spectral": {"spectral_centroid_hz": "number", "spectral_bandwidth_hz": "number",
+                 "rolloff85_hz": "number", "spectral_flatness": "number",
+                 "spectral_skewness": "number", "spectral_kurtosis": "number"},
+    "band_contrast": "number[7]",
+    "mel": {"mfcc_mean": "number[13]", "mfcc_std": "number[13]",
+            "mel_energy_mean_db": "number[40]"},
+    "pitch": {"f0_hz": "number", "voiced_confidence": "number",
+              "pitch_contour_std_cents": "number", "glissando_cents_per_s": "number",
+              "inharmonicity": "number"},
+    "chroma": "number[12]",
+    "spectrogram_grid": "string[16] each len=24, chars ' .:-=+*#%@'",
+    "tokens": "string one-line compact encoding"
+  },
+  "constants": {"HOP": 512, "WIN": 1024, "N_MEL": 40, "N_MFCC": 13,
+                "GRID_T": 16, "GRID_F": 24, "BANDS": 7, "F0_LO": 50, "F0_HI": 4000}
+}

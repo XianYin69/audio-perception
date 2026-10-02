@@ -1,0 +1,8 @@
+tmp/
+__pycache__/
+*.pyc
+.idea/
+.vscode/
+.kilo/
+*.log
+.DS_Store

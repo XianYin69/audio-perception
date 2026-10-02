@@ -1,0 +1,25 @@
+{
+  "name": "audio-perception-result",
+  "version": "ap-per-1",
+  "produced_by": "scripts/perceive.py",
+  "note": "键名固定；网关未给的项填空而非猜测；解析失败时原文入 raw。",
+  "fields": {
+    "type": {"primary": "string（14 类之一，见 knowledge/声音类别体系.md）",
+             "sub": "string", "confidence": "number 0-1"},
+    "feeling": "string[]（质感/空间/远近/温度/压力等听感词）",
+    "object": {"top3": [{"name": "string", "confidence": "number 0-1"}],
+               "reasoning": "string"},
+    "emotion": {"primary": "string", "intensity": "number 0-1", "secondary": "string"},
+    "requirement": {"action": "string", "urgency": "low|mid|high", "rationale": "string"},
+    "evidence": [{"feature": "编码字段名", "value": "string", "implies": "string"}],
+    "uncertainty": "string[]（判不准项＋所需额外能力）",
+    "audio_encoding_digest": "string（缺省回填 tokens 行）",
+    "usage": {"model": "string", "prompt_tokens": "int", "completion_tokens": "int"},
+    "raw": "string（仅解析失败时出现＝网关原始回复）"
+  },
+  "invariants": [
+    "confidence<=0.5 时 uncertainty 不得为空",
+    "usage 不含 api_key 等任何敏感字段",
+    "同音频两次判读不一致时以 evidence 引用的特征值为准"
+  ]
+}
