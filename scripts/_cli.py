@@ -165,6 +165,8 @@ def chat_text(messages, max_tokens=None):
     choices = payload.get("choices") or []
     if not choices:
         die("网关响应无 choices")
-    return {"reply": choices[0]["message"]["content"],
+    msg = choices[0].get("message") or {}
+    return {"reply": msg.get("content") or "",
             "usage": payload.get("usage") or {},
-            "model": payload.get("model", body["model"])}
+            "model": payload.get("model", body["model"]),
+            "finish_reason": choices[0].get("finish_reason") or ""}
