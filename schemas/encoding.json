@@ -29,8 +29,8 @@
     "time": {
       "zcr_mean": "number",
       "zcr_std": "number",
-      "onset_rate_hz": "number",
-      "bpm": "number",
+      "onset_rate_hz": "number（起音率 Hz：20ms 块能量包络正差分去噪声底后的显著峰次数/秒；命中冲击判据时按 max(计数值, 1/duration) 兜底，任意时长输入均适用，见 notes）",
+      "bpm": "number（30-300 BPM；时间基＝20ms 块 RMS 能量包络的自相关，非帧移 hop_s、非起音间隔；调制门限或相关峰不达标＝0，见 notes）",
       "hop_s": "number"
     },
     "spectral": {
@@ -68,11 +68,20 @@
     "GRID_F": 24,
     "BANDS": 7,
     "F0_LO": 50,
-    "F0_HI": 4000
+    "F0_HI": 4000,
+    "BLOCK_MS": 20.0,
+    "RISE_BLOCK_MS": 1.0,
+    "ONSET_DB": 1.41,
+    "SHORT_S": 0.15,
+    "RISE_MS": 10.0,
+    "BPM_MOD": 0.05,
+    "BPM_AC_MIN": 0.3
   },
   "notes": [
     "spectral_flatness>0.4 视为噪声：f0=0 且 voiced_confidence<=0.2",
     "is_silence=true 时 spectral/band_contrast/chroma/mel/pitch 与 onset、bpm 全置 0",
-    "onset_rate_hz 已减噪声底（通量 60 分位基线＋3×MAD）；瞬态短段兜底 1/duration"
+    "onset_rate_hz 计数判据：在 20ms 块 RMS 包络上取 flux=max(diff(env),0)，阈值 thr＝flux 的 60 分位基线＋3×MAD，且须为局部峰（>=左邻 且 >右邻）、env>1.41×中位包络（ONSET_DB），rate＝显著峰数/duration。",
+    "onset_rate_hz 瞬态兜底（现状：已不限时长）：rise＝_rise_ms 用 1ms 块 RMS 的峰值 10%→90% 上升毫秒；transient＝(rise<=10.0 即 RISE_MS) 且 峰值>0 且 median(1ms 块 RMS)<0.2×峰值。当 transient 为真（任意 duration 都生效）或 duration<0.15（SHORT_S）且 rise<10.0 时，rate＝max(rate, 1.0/duration)。兜底只抬升不降低。失效条件：duration<=0、rise=None（峰值<=0）、rise>10ms、median>=0.2×峰值（稳态音，如 440Hz 持续音实测 onset=0）；长输入下 1/duration 极小（8s→0.125Hz）故不伪造高起音率；is_silence=true 时由 _zero_spectral 置 0。",
+    "bpm 时间基与判据（现状：20ms 块能量调制＋调制门限，非起音间隔、非帧移 hop_s）：env＝_block_rms(20ms 块 RMS)，blk_s＝0.02；块数<8（音频<160ms）＝0；调制门限 std(env)/mean(env)<0.05（BPM_MOD）＝0（稳态音实测 cv≈0.006→0）；去均值自相关在 30-300 BPM 带（lag 10..100 块）取峰，峰<0.3（BPM_AC_MIN）＝0；bpm＝60/(lag×0.02)，量化到 20ms→120BPM 处 ±1 块＝115.4/125.0。实测调幅音 60/90/120/150/200 → 60.0/90.9/120.0/150.0/200.0；带外节拍（28/32/290/310）被拉回带边 300.0，须与 onset_rate_hz、duration 交叉复核；is_silence=true 时置 0。"
   ]
 }
