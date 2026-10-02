@@ -18,7 +18,7 @@ metadata:
 ```
 python -B scripts/analyze.py  --audio a.wav [--start 0] [--end 5] [--max-sec 10] \
                               [--format text|json|tokens] [--out enc.json]
-python -B scripts/perceive.py --audio a.wav [--hint "像警报"] [--out res.json] [--raw]
+python -B scripts/perceive.py --audio a.wav [--hint "像警报"] [--max-tokens 2048] [--out res.json] [--raw]
 python -B scripts/perceive.py --encoding enc.json          # 复用已存编码，不再算特征
 python -B scripts/capture.py  --seconds 5                  # 麦克风（可选后端）
 python -B scripts/batch.py    --dir WAV目录 [--no-gateway] [--out all.json]
@@ -36,12 +36,12 @@ WAV 解码（纯标准库）→ numpy 特征编码（确定性）→ 拼提示�
 - 只解码 WAV（PCM8/16/24/32、IEEE-float）；非 WAV 需自行转码（模板见
   [WAV解码注意](knowledge/WAV解码注意.md)），本技能不代装 ffmpeg。
 - 语音内容（说了什么）需 ASR，本技能不含：只判"是语音＋情绪"。
-- 编码确定性可复现；两次判读不一致时以 `evidence` 引用的特征值为准。
+- 编码确定性可复现；两次判读不一致时以 `evidence` 引用的特征值为准；网关输出被截断时先抢救再标 `truncated`，救不回标 `parse_failed`，见 [网关输出截断与抢救](knowledge/网关输出截断与抢救.md)。
 
 ## 红线
 
-不安装依赖；不写技能目录以外的缓存（产物落工作区 tmp）；api_key 绝不打印；失败即停不重试；
-不夸大识别率。详见 [resistance/](resistance/resistance.md)。
+不安装依赖；不写技能目录以外的缓存（产物落工作区 tmp）；api_key 绝不打印；
+失败即停不重试（唯一例外：截断抢救失败后压缩重试一次）；不夸大识别率。详见 [resistance/](resistance/resistance.md)。
 
 ## 目录
 

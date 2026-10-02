@@ -5,26 +5,74 @@
   "produced_by": "scripts/analyze.py --format json",
   "fields": {
     "version": "string=ap-enc-1",
-    "source": {"file": "string", "start": "number(s)", "end": "number(s)", "max_sec": "number"},
-    "meta": {"duration": "number", "sample_rate": "int", "channels": "int",
-             "bit_depth": "int", "clipping_ratio": "number", "silence_ratio": "number"},
-    "loudness": {"rms_dbfs": "number", "peak_dbfs": "number",
-                 "dynamic_range_db": "number", "envelope_var": "number"},
-    "time": {"zcr_mean": "number", "zcr_std": "number", "onset_rate_hz": "number",
-             "bpm": "number", "hop_s": "number"},
-    "spectral": {"spectral_centroid_hz": "number", "spectral_bandwidth_hz": "number",
-                 "rolloff85_hz": "number", "spectral_flatness": "number",
-                 "spectral_skewness": "number", "spectral_kurtosis": "number"},
+    "source": {
+      "file": "string",
+      "start": "number(s)",
+      "end": "number(s)",
+      "max_sec": "number"
+    },
+    "meta": {
+      "duration": "number",
+      "sample_rate": "int",
+      "channels": "int",
+      "bit_depth": "int",
+      "clipping_ratio": "number",
+      "silence_ratio": "number",
+      "is_silence": "bool（silence_ratio>=0.95；此时频域特征全为 0）"
+    },
+    "loudness": {
+      "rms_dbfs": "number",
+      "peak_dbfs": "number",
+      "dynamic_range_db": "number",
+      "envelope_var": "number"
+    },
+    "time": {
+      "zcr_mean": "number",
+      "zcr_std": "number",
+      "onset_rate_hz": "number",
+      "bpm": "number",
+      "hop_s": "number"
+    },
+    "spectral": {
+      "spectral_centroid_hz": "number",
+      "spectral_bandwidth_hz": "number",
+      "rolloff85_hz": "number",
+      "spectral_flatness": "number",
+      "spectral_skewness": "number",
+      "spectral_kurtosis": "number"
+    },
     "band_contrast": "number[7]",
-    "mel": {"mfcc_mean": "number[13]", "mfcc_std": "number[13]",
-            "mel_energy_mean_db": "number[40]"},
-    "pitch": {"f0_hz": "number", "voiced_confidence": "number",
-              "pitch_contour_std_cents": "number", "glissando_cents_per_s": "number",
-              "inharmonicity": "number"},
+    "mel": {
+      "mfcc_mean": "number[13]",
+      "mfcc_std": "number[13]",
+      "mel_energy_mean_db": "number[40]"
+    },
+    "pitch": {
+      "f0_hz": "number",
+      "voiced_confidence": "number",
+      "pitch_contour_std_cents": "number",
+      "glissando_cents_per_s": "number",
+      "inharmonicity": "number",
+      "harmonic_ratio": "number 0-1（f0 整数倍谐波族能量占比，<0.3 则 f0=0）"
+    },
     "chroma": "number[12]",
     "spectrogram_grid": "string[16] each len=24, chars ' .:-=+*#%@'",
     "tokens": "string one-line compact encoding"
   },
-  "constants": {"HOP": 512, "WIN": 1024, "N_MEL": 40, "N_MFCC": 13,
-                "GRID_T": 16, "GRID_F": 24, "BANDS": 7, "F0_LO": 50, "F0_HI": 4000}
+  "constants": {
+    "HOP": 512,
+    "WIN": 1024,
+    "N_MEL": 40,
+    "N_MFCC": 13,
+    "GRID_T": 16,
+    "GRID_F": 24,
+    "BANDS": 7,
+    "F0_LO": 50,
+    "F0_HI": 4000
+  },
+  "notes": [
+    "spectral_flatness>0.4 视为噪声：f0=0 且 voiced_confidence<=0.2",
+    "is_silence=true 时 spectral/band_contrast/chroma/mel/pitch 与 onset、bpm 全置 0",
+    "onset_rate_hz 已减噪声底（通量 60 分位基线＋3×MAD）；瞬态短段兜底 1/duration"
+  ]
 }
