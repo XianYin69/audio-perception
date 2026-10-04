@@ -1,5 +1,6 @@
 ---
 name: audio-perception
+version: 1.0.0
 description: >
   声音感知：把 WAV 用纯 numpy 编成确定性「声音编码」（时域/频域/音高/mel-MFCC/chroma
   ＋16x24 ASCII 谱栅格），交 SMS 纯文本网关判读出类型/听感/对象/情绪/要求（14 类体系＋判别锚点）。
