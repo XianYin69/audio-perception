@@ -2,14 +2,14 @@
   "name": "audio-perception-result",
   "version": "ap-per-1",
   "produced_by": "scripts/perceive.py",
-  "note": "键名固定；网关未给的项填空而非猜测；解析失败时原文入 raw 并标 parse_failed；截断抢救件标 truncated。",
+  "note": "键名固定；网关未给的项填空而非猜测；解析失败时原文入 raw 并标 parse_failed；截断抢救件标 truncated。 feeling/evidence/uncertainty 由 _as_list 归一为数组，模型已给的听感词不被默认值覆盖。",
   "fields": {
     "type": {
       "primary": "string（14 类之一，见 knowledge/声音类别体系.md）",
       "sub": "string",
       "confidence": "number 0-1"
     },
-    "feeling": "string[]（质感/空间/远近/温度/压力等听感词）",
+    "feeling": "string[]（质感/空间/远近/温度/压力等听感词；归属＝网关模型产出，normalize 只做类型归一＋截前 6 项，不回填、不覆盖）",
     "object": {
       "top3": [
         {
@@ -52,6 +52,9 @@
     "usage 不含 api_key 等任何敏感字段",
     "同音频两次判读不一致时以 evidence 引用的特征值为准",
     "parse_failed=true 时不得把空字段当正常判读交付",
-    "truncated=true 表示由 _salvage_json 抢救，字段可能不完整"
+    "truncated=true 表示由 _salvage_json 抢救，字段可能不完整",
+    "feeling 属模型产出：normalize 仅以 _as_list（分隔符 、，,;；及空白）归一并 [:6] 截断，不用默认值覆盖模型已给的听感词（1.0.0 曾把字符串型 feeling 判为非 list 而丢弃为 []，现已修）",
+    "feeling 不从声学编码回填（与 audio_encoding_digest 缺省回填 tokens 不同）；模型未给＝空数组，不得臆造",
+    "truncated=true 或 parse_failed=true 时 feeling 可能缺失或仅部分抢救，交付须随件标注，不得当作「模型判定无听感」"
   ]
 }
