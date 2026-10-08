@@ -24,6 +24,18 @@ GRID_F = 24
 BANDS = 7
 RAMP = " .:-=+*#%@"
 
+HARM_MIN = 0.3
+FLAT_TONAL = 0.4
+PROM_MIN = 10.0
+ONSET_DB = 1.41
+RISE_MS = 10.0
+SHORT_S = 0.15
+SIL_RATIO = 0.95
+BPM_MOD = 0.05
+BPM_AC_MIN = 0.3
+BLOCK_MS = 20.0
+
+
 
 def dbfs(x):
     """线性幅值 -> dBFS（下限 -120）。"""
@@ -45,24 +57,22 @@ def stft(mono, sr):
 
 
 def meta_feats(mono, sr, bits, channels, clip_thr=0.995):
-    """meta：时长/采样率/声道/位深/削波率/静音比。"""
+    """meta：时长/采样率/声道/位深/削波率/静音比/是否静音。"""
     dur = len(mono) / float(sr)
     clipped = float(np.mean(np.abs(mono) >= clip_thr)) if len(mono) else 0.0
     rms_blk = _block_rms(mono, sr)
     sil = float(np.mean(rms_blk < 0.01)) if rms_blk.size else 1.0
     return {"duration": round(dur, 4), "sample_rate": int(sr), "channels": int(channels),
             "bit_depth": int(bits), "clipping_ratio": round(clipped, 5),
-            "silence_ratio": round(sil, 4)}
+            "silence_ratio": round(sil, 4), "is_silence": bool(sil >= SIL_RATIO)}
 
-
-def _block_rms(mono, sr, block_ms=20.0):
+def _block_rms(mono, sr, block_ms=BLOCK_MS):
     """按块 RMS 包络（默认 20ms）。"""
     n = max(1, int(sr * block_ms / 1000.0))
     usable = (len(mono) // n) * n
     if usable == 0:
         return np.zeros(1)
     return np.sqrt((mono[:usable].reshape(-1, n) ** 2).mean(axis=1))
-
 
 def loudness_feats(mono, sr):
     """响度：RMS/峰值 dBFS、动态范围、包络方差。"""
@@ -82,11 +92,32 @@ def time_feats(mono, sr, env):
     hop_s = HOP / float(sr)
     frames = _frame(zc.astype(np.float64))
     zcr = frames.mean(axis=1) if frames.size else np.zeros(1)
-    onset = _onset_rate(env, sr)
+    dur = len(mono) / float(sr)
+    rise = _rise_ms(mono, sr)
+    onset = _onset_rate(env, dur, rise, _is_transient(mono, sr, rise))
     return {"zcr_mean": round(float(zcr.mean()), 5), "zcr_std": round(float(zcr.std()), 5),
-            "onset_rate_hz": round(onset, 3), "bpm": round(_bpm(env, hop_s), 1),
-            "hop_s": round(hop_s, 5)}
+            "onset_rate_hz": round(onset, 3),
+            "bpm": round(_bpm(env, BLOCK_MS / 1000.0), 1), "hop_s": round(hop_s, 5)}
 
+
+def _rise_ms(mono, sr, block_ms=1.0):
+    """包络上升时间（峰值 10%→90%，毫秒；1ms 块分辨率）。"""
+    e = _block_rms(mono, sr, block_ms)
+    pk = float(e.max()) if e.size else 0.0
+    if pk <= 0.0:
+        return None
+    i10 = int(np.argmax(e >= 0.1 * pk))
+    i90 = int(np.argmax(e >= 0.9 * pk))
+    return round(float(max(0, i90 - i10) * block_ms), 2)
+
+
+def _is_transient(mono, sr, rise):
+    """冲击形态：上升 <10ms 且峰值远高于中位包络（稳态音不算）。"""
+    if rise is None or rise > RISE_MS:
+        return False
+    e = _block_rms(mono, sr, 1.0)
+    pk = float(e.max()) if e.size else 0.0
+    return bool(pk > 0.0 and float(np.median(e)) < 0.2 * pk)
 
 def _frame(vec):
     """按 hop 分帧（不足一帧则丢弃尾巴）。"""
@@ -96,30 +127,41 @@ def _frame(vec):
     return vec[:n].reshape(-1, HOP)
 
 
-def _onset_rate(env, sr, block_ms=20.0):
-    """谱通量近似：包络正向差分超阈值的次数 / 秒。"""
-    if env.size < 3:
-        return 0.0
-    d = np.diff(env)
-    thr = max(float(np.std(d)) * 0.8, 1e-6)
-    peaks = int(np.sum(d > thr))
-    return peaks / (env.size * block_ms / 1000.0)
+def _onset_rate(env, dur, rise=None, transient=False):
+    """谱通量近似：减噪声底（60 分位基线＋3×MAD）后计显著峰；冲击兜底。"""
+    rate = 0.0
+    if env.size >= 3 and dur > 0:
+        flux = np.maximum(np.diff(env), 0.0)
+        base = float(np.percentile(flux, 60))
+        mad = float(np.median(np.abs(flux - base)))
+        thr = base + 3.0 * mad
+        med = float(np.median(env))
+        if thr > 0.0 and med > 0.0:
+            seg = flux[1:-1]
+            loc = (seg >= flux[:-2]) & (seg > flux[2:])
+            sig = (seg > thr) & (env[2:-1] > ONSET_DB * med) & loc
+            rate = float(np.sum(sig)) / dur
+    if dur > 0 and (transient or (dur < SHORT_S and rise is not None
+                                  and rise < RISE_MS)):
+        rate = max(rate, 1.0 / dur)
+    return rate
 
-
-def _bpm(env, hop_s):
-    """包络自相关估节拍（30-300 BPM 带内取峰）。"""
-    if env.size < 8:
+def _bpm(env, blk_s):
+    """包络自相关估节拍（30-300 BPM 带内取峰）；无调制或相关弱则 0。"""
+    if env.size < 8 or blk_s <= 0:
         return 0.0
-    e = env - env.mean()
+    mean = float(env.mean())
+    if mean <= 0 or float(np.std(env)) / mean < BPM_MOD:
+        return 0.0
+    e = env - mean
     ac = np.correlate(e, e, mode="full")[env.size - 1:]
     ac = ac / (ac[0] if ac[0] != 0 else 1.0)
-    lo, hi = int(60.0 / 300.0 / hop_s), int(60.0 / 30.0 / hop_s)
+    lo, hi = int(60.0 / 300.0 / blk_s), int(60.0 / 30.0 / blk_s)
     lo, hi = max(lo, 1), min(hi, ac.size - 1)
-    if hi <= lo:
+    if hi <= lo or float(ac[lo:hi + 1].max()) < BPM_AC_MIN:
         return 0.0
     best = lo + int(np.argmax(ac[lo:hi + 1]))
-    return 60.0 / (best * hop_s) if best else 0.0
-
+    return 60.0 / (best * blk_s) if best else 0.0
 
 def _spec_moments(mag, freqs):
     """谱质心/带宽/85% 滚降/平坦度/偏度/峰度（帧均值）。"""
@@ -170,41 +212,115 @@ def _acf_frames(mono):
     return ac, ac[:, 0]
 
 
-def _pitch(mono, sr):
-    """自相关 f0＋清音置信度＋轮廓标准差/滑音＋非谐波度。"""
+def _comb_tol(freqs, f0):
+    """谐波容差：Hann 主瓣半宽（2 bin）与 1.5% f0 取大。"""
+    df = float(freqs[1] - freqs[0]) if len(freqs) > 1 else 1.0
+    return max(2.0 * df, 0.015 * f0)
+
+
+def _harmonic_ratio(P, freqs, f0):
+    """f0 的整数倍谐波族能量占比（bin 掩码去重）。"""
+    if f0 <= 0:
+        return 0.0
+    total = float(P.sum()) + 1e-12
+    sel = np.zeros(len(freqs), dtype=bool)
+    tol = _comb_tol(freqs, f0)
+    k = 1
+    while k * f0 <= freqs[-1]:
+        sel |= np.abs(freqs - k * f0) <= tol
+        k += 1
+    return round(float(P[sel].sum()) / total, 4)
+
+
+def _peak_hz(P, freqs, i):
+    """抛物线插值细化峰频（bin 量化误差约半 bin）。"""
+    if i <= 0 or i >= len(P) - 1:
+        return float(freqs[i])
+    a, b, c = float(P[i - 1]), float(P[i]), float(P[i + 1])
+    den = a - 2.0 * b + c
+    d = 0.0 if den == 0 else 0.5 * (a - c) / den
+    df = float(freqs[1] - freqs[0]) if len(freqs) > 1 else 1.0
+    return float(freqs[i] + d * df)
+
+
+def _spec_peaks(P, freqs, n=8, prom=PROM_MIN):
+    """去趋势离散峰：局部极大且高出邻域中位数 prom 倍（噪声峰不过滤）。"""
+    if P.size < 6:
+        return []
+    m = P[1:-1]
+    idx = np.where((m > P[:-2]) & (m >= P[2:]) & (m > 0.02 * float(P.max())))[0] + 1
+    out = []
+    for i in idx:
+        w = np.concatenate([P[max(1, i - 25):max(2, i - 2)],
+                            P[min(len(P) - 2, i + 3):i + 25]])
+        if w.size >= 4 and float(P[i]) > prom * float(np.median(w)):
+            out.append((_peak_hz(P, freqs, int(i)), float(P[i])))
+    out.sort(key=lambda t: -t[1])
+    return [t[0] for t in out[:n]]
+
+
+def _pitch(mono, sr, mag, freqs, flatness):
+    """f0：离散谱峰＋ACF 子倍频候选 → 谐波能量占比校验；噪声/静音置 0。"""
     ac, base = _acf_frames(mono)
     lo, hi = int(sr / F0_HI), max(int(sr / F0_HI) + 1, int(sr / F0_LO))
     hi = min(hi, PITCH_WIN - 1)
     seg = ac[:, lo:hi + 1] / (base[:, None] + 1e-12)
     best = lo + np.argmax(seg, axis=1)
     conf = seg[np.arange(seg.shape[0]), best - lo]
-    voiced = conf > 0.35
-    f0 = np.where(voiced, sr / np.maximum(best, 1), 0.0)
-    fv = f0[voiced]
-    out = {"f0_hz": round(float(np.median(fv)), 1) if fv.size else 0.0,
-           "voiced_confidence": round(float(conf.mean()), 3),
-           "pitch_contour_std_cents": 0.0, "glissando_cents_per_s": 0.0,
-           "inharmonicity": 0.0}
+    P = (mag ** 2).mean(axis=0)
+    out = {"f0_hz": 0.0, "voiced_confidence": 0.0, "pitch_contour_std_cents": 0.0,
+           "glissando_cents_per_s": 0.0, "inharmonicity": 1.0, "harmonic_ratio": 0.0}
+    if float(flatness) > FLAT_TONAL:
+        out["voiced_confidence"] = round(min(0.2, float(conf.mean()) * 0.2), 3)
+        return out
+    peaks = _spec_peaks(P, freqs)
+    cands = list(peaks)
+    c = sr / float(max(float(best.mean()), 1))
+    while c >= F0_LO:
+        if not any(abs(c - p) <= _comb_tol(freqs, c) for p in peaks):
+            cands.append(c)
+        c /= 2.0
+    f0, ratio = 0.0, 0.0
+    for c in cands:
+        if c < F0_LO or c > min(F0_HI, float(freqs[-1])):
+            continue
+        tol = _comb_tol(freqs, c)
+        if not any(abs(p - c) <= tol for p in peaks):
+            continue
+        r = _harmonic_ratio(P, freqs, c)
+        if r < HARM_MIN:
+            continue
+        if f0 <= 0 or r > ratio + 0.05 or (r >= ratio - 0.05 and c < f0):
+            f0, ratio = c, r
+    out["f0_hz"] = round(f0, 1)
+    out["harmonic_ratio"] = ratio
+    if f0 <= 0:
+        return out
+
+
+    out["voiced_confidence"] = round((1.0 - float(flatness)) * min(1.0, ratio / 0.5), 3)
+    lag = sr / f0
+    w0, w1 = max(1, int(lag * 0.9)), min(PITCH_WIN - 1, int(lag * 1.1) + 1)
+    if w1 <= w0:
+        return out
+    sub = ac[:, w0:w1 + 1] / (base[:, None] + 1e-12)
+    bb = w0 + np.argmax(sub, axis=1)
+    hit = sub[np.arange(sub.shape[0]), bb - w0]
+    fv = (sr / bb.astype(np.float64))[hit > 0.35]
     if fv.size >= 3:
         cents = 1200.0 * np.log2(fv / fv[0])
         out["pitch_contour_std_cents"] = round(float(np.std(cents)), 1)
         hop_s = HOP / float(sr)
-        out["glissando_cents_per_s"] = round(float(np.mean(np.abs(np.diff(cents))) / hop_s), 1)
+        out["glissando_cents_per_s"] = round(
+            float(np.mean(np.abs(np.diff(cents)))) / hop_s, 1)
     return out
 
-
 def _inharmonicity(mag, freqs, f0):
-    """谐波族能量占比的补：非谐波度 = 1 - 谐波能量/总能量。"""
+    """非谐波度 = 1 - 谐波族能量占比（与 harmonic_ratio 互补）。"""
     if f0 <= 0:
         return 1.0
-    total = float((mag ** 2).sum()) + 1e-12
-    harm = np.zeros(len(freqs), dtype=bool)
-    k = 1
-    while k * f0 < freqs[-1]:
-        harm |= np.abs(freqs - k * f0) < max(2.0, f0 * 0.02)
-        k += 1
-    return round(1.0 - float((mag[:, harm] ** 2).sum()) / total, 4)
-
+    P = (mag ** 2).mean(axis=0)
+    return round(1.0 - _harmonic_ratio(P, freqs, f0), 4)
 
 def _hz2mel(hz):
     return 2595.0 * np.log10(1.0 + np.asarray(hz, dtype=np.float64) / 700.0)
@@ -312,16 +428,36 @@ def encode(mono, sr, bits, channels, src):
     """全特征编码（确定性）。"""
     mag, freqs = stft(mono, sr)
     env = _block_rms(mono, sr)
-    enc = {"version": "ap-enc-1", "source": src, "meta": meta_feats(mono, sr, bits, channels),
+    meta = meta_feats(mono, sr, bits, channels)
+    spec = _spec_moments(mag, freqs)
+    enc = {"version": "ap-enc-1", "source": src, "meta": meta,
            "loudness": loudness_feats(mono, sr), "time": time_feats(mono, sr, env),
-           "spectral": _spec_moments(mag, freqs), "band_contrast": _band_contrast(mag, freqs),
-           "mel": mfcc(mag, sr, mag.shape[1]), "pitch": _pitch(mono, sr),
+           "spectral": spec, "band_contrast": _band_contrast(mag, freqs),
+           "mel": mfcc(mag, sr, mag.shape[1]),
+           "pitch": _pitch(mono, sr, mag, freqs, spec["spectral_flatness"]),
            "chroma": chroma(mag, freqs)}
     enc["pitch"]["inharmonicity"] = _inharmonicity(mag, freqs, enc["pitch"]["f0_hz"])
+    if meta["is_silence"]:
+        _zero_spectral(enc)
     enc["spectrogram_grid"] = _grid(mag, freqs)
     enc["tokens"] = _tokens(enc)
     return enc
 
+
+def _zero_spectral(enc):
+    """静音：频域特征全置 0 并标 is_silence（空谱均值会误导判读）。"""
+    for k in enc["spectral"]:
+        enc["spectral"][k] = 0.0
+    for k in ("f0_hz", "voiced_confidence", "harmonic_ratio",
+              "pitch_contour_std_cents", "glissando_cents_per_s"):
+        enc["pitch"][k] = 0.0
+    enc["pitch"]["inharmonicity"] = 1.0
+    enc["band_contrast"] = [0.0] * BANDS
+    enc["chroma"] = [0.0] * 12
+    enc["mel"] = {"mfcc_mean": [0.0] * N_MFCC, "mfcc_std": [0.0] * N_MFCC,
+                  "mel_energy_mean_db": [0.0] * N_MEL}
+    enc["time"]["onset_rate_hz"] = 0.0
+    enc["time"]["bpm"] = 0.0
 
 def render_text(enc):
     """人类可读文本块（含 ASCII 谱栅格，高频在上）。"""
