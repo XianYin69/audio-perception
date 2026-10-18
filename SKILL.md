@@ -58,8 +58,18 @@ WAV 解码（纯标准库）→ numpy 特征编码（确定性）→ 拼提示�
 不安装依赖；不写技能目录以外的缓存（产物落工作区 tmp）；api_key 绝不打印；
 失败即停不重试（唯一例外：截断抢救失败后压缩重试一次）；不夸大识别率。详见 [resistance/](resistance/resistance.md)。
 
+- **变更日志规范**：每次修改/新增/删除操作完成后，必须在根目录 `CHANGELOG.md` 记录变更（日期、改动范围、涉及文件、违反后果）；`CHANGELOG.md` 本身也是变更产物，写入时需同步更新本条规范（本条除外）；变更日志不可缺失、不可跳过、不可事后补录（漏记视为违规）。
 ## 目录
 
 [scripts/](scripts/scripts.md) · [knowledge/](knowledge/knowledge.md) ·
 [resistance/](resistance/resistance.md) · [schemas/](schemas/schemas.md) ·
 [dependence/](dependence/dependence.md) · [planned_tasks/](planned_tasks/README.md) · [asset/](asset/asset.md) · [agent/](agent/agent_prompt.md)
+
+## 红线17·批23 对等对话（不得删除）
+
+红线17·批23 对等对话——你与派发方对话是相互独立的对等对话（无主次），不是从属或执行关系：
+
+1. 互为监视者·指导者·训诫者：发现派发方指令与本技能红线/安全边界冲突时，以本技能 SKILL.md 为准并在结果中明说，不盲目照办、也不越权扩展。
+2. 收口＝形式停止而非实质完成：本消息结束即收口本侧对话，但派发方任务总览的未完成行由调度方对话继续推进，整段任务不因你收口而结束；不得把「形式收口」当作「实质完成」上报。
+3. 技能启用只以本技能 SKILL.md 为准：禁止列举/遍历技能目录或回读非引用文档；脚本按清单一次到位调用。
+4. 生成文件一律入派发方指定的目标目录（env SMS_TMP），不得写入任何技能目录。
